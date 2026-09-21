@@ -1,0 +1,222 @@
+[
+  {
+    "id": 1,
+    "factory_name": "石岩某某电子厂",
+    "position": "普工",
+    "salary": "6000-8000元/月",
+    "requirements": "18-45岁，男女不限，不需要经验，能吃苦耐劳",
+    "benefits": "包吃包住，有空调宿舍，提供床上用品，有食堂",
+    "work_time": "12小时两班倒，白班7:00-19:00，夜班19:00-7:00",
+    "location": "深圳市宝安区石岩街道石龙社区",
+    "overtime": "平时加班1.5倍，周末加班2倍，法定节假日3倍"
+  },
+  {
+    "id": 2,
+    "factory_name": "松岗某某制衣厂",
+    "position": "车位工",
+    "salary": "5500-7000元/月",
+    "requirements": "18-40岁，女性优先，有制衣经验优先",
+    "benefits": "包吃不包住，有宿舍可租每月300元，提供工作餐",
+    "work_time": "8小时白班，早8:00-晚5:00，中午休息1小时",
+    "location": "深圳市宝安区松岗街道松岗大道",
+    "overtime": "加班较少，旺季可能周末加班，自愿原则"
+  },
+  {
+    "id": 3,
+    "factory_name": "公明某某五金厂",
+    "position": "车床工",
+    "salary": "7000-9000元/月",
+    "requirements": "20-45岁，男性，有车床操作经验，会看图纸",
+    "benefits": "包吃包住，6人间宿舍，有独立卫浴",
+    "work_time": "10小时白班，早8:00-晚6:00",
+    "location": "深圳市光明区公明街道上村社区",
+    "overtime": "加班较多，平时每天加班2小时，周末可能加班"
+  },
+  {
+    "id": 4,
+    "factory_name": "石岩某某塑胶厂",
+    "position": "注塑工",
+    "salary": "6500-8500元/月",
+    "requirements": "20-50岁，男性，有注塑机操作经验",
+    "benefits": "包吃包住，空调宿舍，有洗衣房",
+    "work_time": "12小时两班倒，做六休一",
+    "location": "深圳市宝安区石岩街道浪心社区",
+    "overtime": "按国家规定计算加班费，加班较多"
+  },
+  {
+    "id": 5,
+    "factory_name": "沙井某某物流仓库",
+    "position": "仓库管理员",
+    "salary": "5000-6500元/月",
+    "requirements": "20-40岁，男女不限，会电脑操作，有仓库经验优先",
+    "benefits": "包吃包住，8人间宿舍，有食堂",
+    "work_time": "8小时白班，早9:00-晚6:00",
+    "location": "深圳市宝安区沙井街道新桥社区",
+    "overtime": "加班较少，主要是盘点时候"
+  },
+  {
+    "id": 6,
+    "factory_name": "石岩某某包装厂",
+    "position": "包装工",
+    "salary": "5000-6500元/月",
+    "requirements": "18-50岁，男女不限，手脚麻利即可",
+    "benefits": "包吃包住，集体宿舍，有空调",
+    "work_time": "10小时白班，早8:00-晚6:00",
+    "location": "深圳市宝安区石岩街道应人石社区",
+    "overtime": "旺季加班多，淡季加班少"
+  },
+  {
+    "id": 7,
+    "factory_name": "龙华某某电子厂",
+    "position": "SMT操作工",
+    "salary": "6500-8000元/月",
+    "requirements": "18-35岁，女性优先，视力良好，手指灵活",
+    "benefits": "包吃包住，4-6人间宿舍，有独立卫浴",
+    "work_time": "12小时两班倒，做五休二",
+    "location": "深圳市龙华区龙华街道",
+    "overtime": "加班按国家标准计算"
+  },
+  {
+    "id": 8,
+    "factory_name": "公明某某印刷厂",
+    "position": "印刷机操作工",
+    "salary": "6000-8000元/月",
+    "requirements": "20-45岁，男性，有印刷经验优先",
+    "benefits": "包吃包住，6-8人间宿舍",
+    "work_time": "10小时白班，可能夜班",
+    "location": "深圳市光明区公明街道李松蓢社区",
+    "overtime": "订单多时加班，加班费按规定"
+  },
+  {
+    "id": 9,
+    "factory_name": "石岩某某模具厂",
+    "position": "模具师傅",
+    "salary": "8000-12000元/月",
+    "requirements": "25-50岁，男性，3年以上模具经验，会编程",
+    "benefits": "包吃包住，4人间宿舍，师傅单间",
+    "work_time": "8小时白班，弹性工作",
+    "location": "深圳市宝安区石岩街道羊台山附近",
+    "overtime": "加班较多，收入高"
+  },
+  {
+    "id": 10,
+    "factory_name": "松岗某某玩具厂",
+    "position": "装配工",
+    "salary": "5500-7000元/月",
+    "requirements": "18-45岁，男女不限，手脚灵活",
+    "benefits": "包吃包住，集体宿舍",
+    "work_time": "10小时白班，做六休一",
+    "location": "深圳市宝安区松岗街道沙浦围",
+    "overtime": "旺季9-12月加班多"
+  },
+  {
+    "id": 11,
+    "factory_name": "石岩某某食品厂",
+    "position": "生产工",
+    "salary": "5000-6500元/月",
+    "requirements": "18-45岁，男女不限，办健康证",
+    "benefits": "包吃包住，工作环境好，有空调",
+    "work_time": "8小时白班，早8:00-晚5:00",
+    "location": "深圳市宝安区石岩街道",
+    "overtime": "加班少，工作轻松"
+  },
+  {
+    "id": 12,
+    "factory_name": "福永某某电子厂",
+    "position": "品检员",
+    "salary": "5500-7000元/月",
+    "requirements": "20-40岁，女性优先，视力好，细心",
+    "benefits": "包吃包住，6人间宿舍",
+    "work_time": "10小时白班或夜班",
+    "location": "深圳市宝安区福永街道",
+    "overtime": "加班按实际情况"
+  },
+  {
+    "id": 13,
+    "factory_name": "石岩某某服装厂",
+    "position": "裁剪工",
+    "salary": "6000-8000元/月",
+    "requirements": "20-45岁，男性，有裁剪经验",
+    "benefits": "包吃不包住，有宿舍300元/月",
+    "work_time": "8小时白班",
+    "location": "深圳市宝安区石岩街道",
+    "overtime": "旺季加班"
+  },
+  {
+    "id": 14,
+    "factory_name": "观澜某某印刷厂",
+    "position": "后道工",
+    "salary": "5500-7000元/月",
+    "requirements": "18-50岁，男女不限",
+    "benefits": "包吃包住",
+    "work_time": "10小时白班",
+    "location": "深圳市龙华区观澜街道",
+    "overtime": "订单多时加班"
+  },
+  {
+    "id": 15,
+    "factory_name": "石岩某某机械厂",
+    "position": "叉车司机",
+    "salary": "6500-8000元/月",
+    "requirements": "25-50岁，男性，有叉车证，3年以上经验",
+    "benefits": "包吃包住，单人宿舍",
+    "work_time": "8小时白班，做六休一",
+    "location": "深圳市宝安区石岩街道",
+    "overtime": "加班较少"
+  },
+  {
+    "id": 16,
+    "factory_name": "公明某某灯饰厂",
+    "position": "组装工",
+    "salary": "5500-7000元/月",
+    "requirements": "18-45岁，男女不限",
+    "benefits": "包吃包住，集体宿舍",
+    "work_time": "10小时白班",
+    "location": "深圳市光明区公明街道",
+    "overtime": "旺季加班多"
+  },
+  {
+    "id": 17,
+    "factory_name": "松岗某某皮具厂",
+    "position": "手袋车位",
+    "salary": "6000-8000元/月",
+    "requirements": "20-45岁，女性，有车位经验",
+    "benefits": "包吃不包住，有宿舍可租",
+    "work_time": "8小时白班",
+    "location": "深圳市宝安区松岗街道",
+    "overtime": "自愿加班"
+  },
+  {
+    "id": 18,
+    "factory_name": "石岩某某电器厂",
+    "position": "测试员",
+    "salary": "5500-7000元/月",
+    "requirements": "18-40岁，男女不限，会用测试仪器",
+    "benefits": "包吃包住，6-8人间",
+    "work_time": "8小时白班或两班倒",
+    "location": "深圳市宝安区石岩街道",
+    "overtime": "加班按需"
+  },
+  {
+    "id": 19,
+    "factory_name": "龙华某某科技厂",
+    "position": "技术员",
+    "salary": "7000-10000元/月",
+    "requirements": "20-35岁，大专以上，电子相关专业",
+    "benefits": "包吃包住，4人间宿舍，有独立卫浴",
+    "work_time": "8小时白班，做五休二",
+    "location": "深圳市龙华区龙华街道",
+    "overtime": "加班较少，工作环境好"
+  },
+  {
+    "id": 20,
+    "factory_name": "石岩某某家具厂",
+    "position": "木工",
+    "salary": "7000-9000元/月",
+    "requirements": "25-50岁，男性，有木工经验3年以上",
+    "benefits": "包吃包住，4-6人间",
+    "work_time": "8小时白班",
+    "location": "深圳市宝安区石岩街道",
+    "overtime": "订单多时加班"
+  }
+]
