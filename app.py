@@ -14,7 +14,7 @@ import streamlit as st
 
 from ai_service import AIService, check_ollama, resolve_model_name
 from conversation_store import ConversationStore
-from knowledge_base import KnowledgeBase, load_jobs_file
+from knowledge_base import KnowledgeBase
 
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,10 @@ def get_store() -> ConversationStore:
 
 @st.cache_data(show_spinner=False)
 def get_jobs() -> list[dict[str, object]]:
-    return load_jobs_file(Path(__file__).resolve().parent / "data" / "jobs.json")
+    store = get_store()
+    jobs_path = Path(__file__).resolve().parent / "data" / "jobs.json"
+    store.sync_jobs_from_file(jobs_path)
+    return store.list_jobs()
 
 
 def initial_messages() -> list[dict[str, object]]:
