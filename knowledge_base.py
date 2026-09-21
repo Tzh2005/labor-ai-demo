@@ -83,32 +83,67 @@ class KnowledgeBase:
             )
             return
 
-        # Build into a temp dir first; only swap in on success.
-        with tempfile.TemporaryDirectory(prefix="chroma_rebuild_") as tmp_dir:
+        # Build on the target volume so a directory rename is atomic. A system
+        # temp directory can be on a different drive on Windows, where moving
+        # it becomes a copy and can leave no usable index after an interruption.
+        staging_dir = Path(tempfile.mkdtemp(prefix=".chroma_rebuild_", dir=self.chroma_dir.parent))
+        try:
             tmp_store = Chroma.from_documents(
                 documents=documents,
                 embedding=self.embeddings,
                 collection_name=self.collection_name,
-                persist_directory=tmp_dir,
+                persist_directory=str(staging_dir),
             )
             if hasattr(tmp_store, "persist"):
                 tmp_store.persist()
-            # Atomic swap: backup old, move new in.
-            if self.chroma_dir.exists():
-                backup = self.chroma_dir.with_name(self.chroma_dir.name + ".bak")
-                if backup.exists():
-                    shutil.rmtree(backup, ignore_errors=True)
-                self.chroma_dir.rename(backup)
-            shutil.move(tmp_dir, str(self.chroma_dir))
-            # Reload from the new directory.
-            self.vectorstore = Chroma(
+            self._activate_staged_index(staging_dir, signature)
+        finally:
+            if staging_dir.exists():
+                shutil.rmtree(staging_dir, ignore_errors=True)
+        logger.info("Chroma index rebuilt and swapped in (signature=%s)", signature[:12])
+
+    def _activate_staged_index(self, staging_dir: Path, signature: str) -> None:
+        """Replace the active index with a same-volume staging directory.
+
+        The previous index remains recoverable until the staged directory has
+        been moved into place, opened by Chroma, and received its data signature.
+        """
+        backup_dir = self.chroma_dir.with_name(f"{self.chroma_dir.name}.bak")
+        had_current_index = self.chroma_dir.exists()
+        if backup_dir.exists() and not had_current_index:
+            # A previous process may have stopped after moving the active
+            # directory aside. Restore that only copy before trying again.
+            backup_dir.replace(self.chroma_dir)
+            had_current_index = True
+        elif backup_dir.exists():
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+        active_moved = False
+        staging_moved = False
+        try:
+            if had_current_index:
+                self.chroma_dir.replace(backup_dir)
+                active_moved = True
+            staging_dir.replace(self.chroma_dir)
+            staging_moved = True
+            new_vectorstore = Chroma(
                 collection_name=self.collection_name,
                 persist_directory=str(self.chroma_dir),
                 embedding_function=self.embeddings,
             )
-        self.chroma_dir.mkdir(parents=True, exist_ok=True)
-        self.signature_path.write_text(signature, encoding="utf-8")
-        logger.info("Chroma index rebuilt and swapped in (signature=%s)", signature[:12])
+            self.signature_path.write_text(signature, encoding="utf-8")
+            self.vectorstore = new_vectorstore
+        except Exception:
+            # A new directory may already be active if validation failed after
+            # the rename. Remove it before putting the known-good backup back.
+            if staging_moved and self.chroma_dir.exists():
+                shutil.rmtree(self.chroma_dir, ignore_errors=True)
+            if active_moved and backup_dir.exists():
+                backup_dir.replace(self.chroma_dir)
+            raise
+        else:
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
 
     def search(self, query: str, k: int = 4) -> list[Document]:
         """Return the most relevant job and FAQ documents for a question."""

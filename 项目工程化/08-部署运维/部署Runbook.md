@@ -155,12 +155,26 @@ curl --fail --max-time 5 http://127.0.0.1:8501/_stcore/health
 
 ### 3.5 Nginx 反向代理模板
 
-仅在已配置 TLS 证书后启用公网入口。示例中的域名必须替换：
+仅在已配置 TLS 证书后启用公网入口。示例中的域名和证书路径必须替换；不要把 `8501` 直接暴露到公网。
 
 ```nginx
+# /etc/nginx/sites-available/labor-ai-demo
+# HTTP 只用于跳转，页面登录和会话始终经 HTTPS 传输。
 server {
     listen 80;
     server_name ai.example.com;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ai.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/ai.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ai.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=31536000" always;
 
     location / {
         proxy_pass http://127.0.0.1:8501;
@@ -169,12 +183,17 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
         proxy_read_timeout 300;
     }
 }
 ```
 
-执行 `sudo nginx -t` 后再 reload。应继续配置 HTTPS、访问日志轮转、请求体限制和组织所需的访问控制；这些配置未经真实域名环境验证前不能宣称生产就绪。
+在防火墙中仅开放 `80`（仅跳转）、`443` 和受限来源的 `22`，绝不开放 `8501` 或 `11434`；确认已为域名签发证书后，执行 `sudo nginx -t` 再 reload。应继续配置访问日志轮转、请求体限制和组织所需的访问控制；这些配置未经真实域名环境验证前不能宣称生产就绪。
 
 ## 4. 标准升级步骤
 

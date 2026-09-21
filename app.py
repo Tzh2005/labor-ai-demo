@@ -280,16 +280,11 @@ with chat_tab:
             started_at = time.perf_counter()
             with st.spinner("正在检索本地知识库..."):
                 token_stream, sources = get_service().chat_stream(question, history_text(st.session_state.messages[:-1]))
-            first_token_seconds: list[float] = []
-
-            def stream_with_timing():
-                for token in token_stream:
-                    if not first_token_seconds:
-                        first_token_seconds.append(time.perf_counter() - started_at)
-                    yield token
 
             with st.chat_message("assistant"):
-                answer = st.write_stream(stream_with_timing())
+                # The service validates the complete model response before it
+                # reaches the UI, so this is intentionally a single safe chunk.
+                answer = st.write_stream(token_stream)
                 answer = (answer or "").strip() or "这个问题需要转接人工客服确认。"
                 if sources:
                     with st.expander("本次回答参考"):
@@ -299,7 +294,6 @@ with chat_tab:
             st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
             store.save_message(st.session_state.conversation_id, "assistant", answer, sources)
             st.session_state.last_elapsed = elapsed
-            st.session_state.last_first_token = first_token_seconds[0] if first_token_seconds else elapsed
         except Exception as error:
             # 生产环境：只给用户通用提示，详细日志写文件
             logger.error("AI service error", exc_info=True)
@@ -310,11 +304,7 @@ with chat_tab:
                 st.error(message)
 
     if "last_elapsed" in st.session_state:
-        first_token = st.session_state.get("last_first_token")
-        if first_token is not None:
-            st.caption(f"首字 {first_token:.1f} 秒 · 全文 {st.session_state.last_elapsed:.1f} 秒")
-        else:
-            st.caption(f"最近一次回答耗时：{st.session_state.last_elapsed:.2f} 秒")
+        st.caption(f"最近一次回答耗时：{st.session_state.last_elapsed:.2f} 秒")
 
 with jobs_tab:
     location_options = ["全部地区"] + sorted({str(job["location"]).split("区")[0] + "区" for job in jobs})
