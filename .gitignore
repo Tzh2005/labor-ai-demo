@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Runtime data and generated indexes
+data/*.db
+data/*.db-*
+chroma_db/
+*.log
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
