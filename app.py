@@ -15,6 +15,7 @@ import streamlit as st
 from ai_service import AIService, check_ollama, resolve_model_name
 from conversation_store import ConversationStore
 from knowledge_base import KnowledgeBase
+from matching import match_candidate_to_jobs
 
 
 logger = logging.getLogger(__name__)
@@ -240,7 +241,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-chat_tab, jobs_tab = st.tabs(["智能问答", "浏览岗位"])
+chat_tab, jobs_tab, candidates_tab = st.tabs(["智能问答", "浏览岗位", "候选人匹配"])
 
 with chat_tab:
     for message in st.session_state.messages:
@@ -323,3 +324,78 @@ with jobs_tab:
     st.caption(f"找到 {len(visible_jobs)} 个符合条件的岗位")
     for job in visible_jobs:
         render_job(job)
+
+with candidates_tab:
+    st.subheader("候选人登记")
+    st.caption("手机号仅保存哈希和后四位，用于本地业务去重和人工联系提示。")
+    with st.form("candidate_registration", clear_on_submit=True):
+        first_row, second_row = st.columns(2)
+        candidate_name = first_row.text_input("姓名", placeholder="例如：张三")
+        candidate_phone = second_row.text_input("手机号", placeholder="仅用于联系，不会明文入库")
+        third_row, fourth_row, fifth_row = st.columns(3)
+        candidate_age = third_row.number_input("年龄", min_value=16, max_value=70, value=25, step=1)
+        candidate_gender = fourth_row.selectbox("性别", ["未说明", "男", "女"])
+        candidate_location = fifth_row.text_input("期望地区", placeholder="例如：石岩")
+        candidate_position = st.text_input("期望岗位", placeholder="例如：普工")
+        candidate_skills = st.text_input("技能或经历", placeholder="例如：电子厂经验、包装、叉车证")
+        candidate_submitted = st.form_submit_button("登记候选人", use_container_width=True)
+    if candidate_submitted:
+        try:
+            candidate_id = store.create_candidate(
+                candidate_name,
+                candidate_phone,
+                int(candidate_age),
+                candidate_gender,
+                candidate_location,
+                candidate_position,
+                candidate_skills,
+            )
+            st.success(f"候选人已登记，编号 #{candidate_id}。")
+            st.rerun()
+        except ValueError as error:
+            st.error(str(error))
+
+    candidates = store.list_candidates()
+    if not candidates:
+        st.info("还没有候选人，请先完成登记。")
+    else:
+        st.divider()
+        st.subheader("候选人匹配推荐")
+        candidate_options = {f"#{item['id']} {item['name']} · {item['preferred_position'] or '未填写'}": item for item in candidates}
+        selected_label = st.selectbox("选择候选人", list(candidate_options))
+        selected_candidate = candidate_options[selected_label]
+        recommendations = match_candidate_to_jobs(selected_candidate, jobs, limit=5)
+        if not recommendations:
+            st.warning("当前岗位库没有满足地区、岗位或技能条件的推荐结果。")
+        for recommendation in recommendations:
+            job = recommendation["job"]
+            reason = "、".join(recommendation["reasons"])
+            match_left, match_right = st.columns([5, 1])
+            with match_left:
+                st.markdown(f"**{job['factory_name']} · {job['position']}**　匹配度 {recommendation['score']} / 100")
+                st.caption(f"{job['location']} · {job['salary']} · {reason}")
+            with match_right:
+                if st.button("报名", key=f"apply_{selected_candidate['id']}_{job['id']}", use_container_width=True):
+                    application_id = store.create_application(int(selected_candidate["id"]), int(job["id"]))
+                    st.success(f"报名记录 #{application_id} 已保存")
+                    st.rerun()
+
+    applications = store.list_applications()
+    if applications:
+        st.divider()
+        st.subheader("报名状态")
+        statuses = {"applied": "已报名", "interview": "面试中", "hired": "已入职", "rejected": "未录用", "withdrawn": "已撤回"}
+        for application in applications:
+            status_values = list(statuses)
+            current_index = status_values.index(application["status"])
+            status_key = f"status_{application['id']}"
+            selected_status = st.selectbox(
+                f"#{application['id']} {application['name']} → {application['factory_name']} · {application['position']}",
+                status_values,
+                index=current_index,
+                format_func=lambda value: statuses[value],
+                key=status_key,
+            )
+            if selected_status != application["status"]:
+                store.update_application_status(int(application["id"]), selected_status)
+                st.rerun()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
@@ -115,6 +116,100 @@ class ConversationStore:
             with connection:
                 return int(connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0])
 
+    def create_candidate(
+        self,
+        name: str,
+        phone: str,
+        age: int | None,
+        gender: str,
+        preferred_location: str,
+        preferred_position: str,
+        skills: str,
+    ) -> int:
+        """Create a candidate while keeping the phone number out of plaintext storage."""
+        clean_phone = "".join(character for character in phone if character.isdigit())
+        if len(clean_phone) < 7:
+            raise ValueError("手机号至少需要 7 位数字")
+        if not name.strip():
+            raise ValueError("候选人姓名不能为空")
+        phone_hash = hashlib.sha256(clean_phone.encode("utf-8")).hexdigest()
+        phone_last4 = clean_phone[-4:]
+        now = datetime.now(timezone.utc).isoformat()
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO candidates (
+                        name, phone_hash, phone_last4, age, gender,
+                        preferred_location, preferred_position, skills, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                    """,
+                    (name.strip(), phone_hash, phone_last4, age, gender.strip(), preferred_location.strip(), preferred_position.strip(), skills.strip(), now),
+                )
+                return int(cursor.lastrowid)
+
+    def list_candidates(self) -> list[dict[str, Any]]:
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    """
+                    SELECT id, name, phone_last4, age, gender, preferred_location,
+                           preferred_position, skills, status, created_at
+                    FROM candidates ORDER BY id DESC
+                    """
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def create_application(self, candidate_id: int, job_id: int) -> int:
+        """Create an application once; repeated clicks return the existing row."""
+        now = datetime.now(timezone.utc).isoformat()
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    INSERT INTO applications (candidate_id, job_id, status, created_at, updated_at)
+                    VALUES (?, ?, 'applied', ?, ?)
+                    ON CONFLICT(candidate_id, job_id) DO NOTHING
+                    """,
+                    (candidate_id, job_id, now, now),
+                )
+                row = connection.execute(
+                    "SELECT id FROM applications WHERE candidate_id = ? AND job_id = ?",
+                    (candidate_id, job_id),
+                ).fetchone()
+        if row is None:
+            raise RuntimeError("报名记录创建失败")
+        return int(row[0])
+
+    def list_applications(self) -> list[dict[str, Any]]:
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    """
+                    SELECT applications.id, applications.candidate_id, candidates.name,
+                           applications.job_id, jobs.factory_name, jobs.position,
+                           applications.status, applications.created_at
+                    FROM applications
+                    JOIN candidates ON candidates.id = applications.candidate_id
+                    JOIN jobs ON jobs.id = applications.job_id
+                    ORDER BY applications.id DESC
+                    """
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_application_status(self, application_id: int, status: str) -> None:
+        allowed = {"applied", "interview", "hired", "rejected", "withdrawn"}
+        if status not in allowed:
+            raise ValueError(f"不支持的报名状态: {status}")
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                connection.execute(
+                    "UPDATE applications SET status = ?, updated_at = ? WHERE id = ?",
+                    (status, datetime.now(timezone.utc).isoformat(), application_id),
+                )
+
     def message_count(self) -> int:
         with closing(sqlite3.connect(self.database_path)) as connection:
             with connection:
@@ -135,6 +230,36 @@ class ConversationStore:
                         content TEXT NOT NULL,
                         sources_json TEXT NOT NULL,
                         created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS candidates (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        phone_hash TEXT NOT NULL,
+                        phone_last4 TEXT NOT NULL,
+                        age INTEGER,
+                        gender TEXT NOT NULL,
+                        preferred_location TEXT NOT NULL,
+                        preferred_position TEXT NOT NULL,
+                        skills TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK (status IN ('new', 'contacted', 'active', 'inactive')),
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS applications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        candidate_id INTEGER NOT NULL REFERENCES candidates(id),
+                        job_id INTEGER NOT NULL REFERENCES jobs(id),
+                        status TEXT NOT NULL CHECK (status IN ('applied', 'interview', 'hired', 'rejected', 'withdrawn')),
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        UNIQUE(candidate_id, job_id)
                     )
                     """
                 )
