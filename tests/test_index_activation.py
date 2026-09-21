@@ -8,9 +8,23 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from knowledge_base import KnowledgeBase
+from langchain_core.documents import Document
 
 
 class IndexActivationTests(unittest.TestCase):
+    def test_hybrid_search_fuses_lexical_and_vector_rankings(self) -> None:
+        knowledge_base = KnowledgeBase.__new__(KnowledgeBase)
+        vector_result = Document(page_content="岗位：普工，石岩，6000元", metadata={"type": "job", "job_id": "1", "title": "普工"})
+        lexical_result = Document(page_content="岗位：叉车司机，石岩，叉车证", metadata={"type": "job", "job_id": "2", "title": "叉车司机"})
+        knowledge_base.vectorstore = Mock()
+        knowledge_base.vectorstore.similarity_search.return_value = [vector_result, lexical_result]
+        knowledge_base._ensure_loaded = Mock()
+        knowledge_base._build_documents = Mock(return_value=[vector_result, lexical_result])
+
+        results = knowledge_base.hybrid_search("石岩 普工", k=2)
+
+        self.assertEqual([document.metadata["job_id"] for document in results], ["1", "2"])
+
     def test_failed_staging_move_restores_existing_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

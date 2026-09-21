@@ -11,7 +11,7 @@
 | Ollama + qwen2.5 | 本地中文对话模型（默认 3b，可通过环境变量切换 7b） |
 | BAAI/bge-large-zh-v1.5 | 中文语义嵌入模型 |
 | ChromaDB | 本地持久化向量索引 |
-| SQLite | 本地会话记录，便于演示后复盘 |
+| SQLite | 本地会话、岗位、候选人和报名记录，便于演示后复盘 |
 
 ## 本地启动
 
@@ -40,6 +40,8 @@ streamlit run app.py
 - 聊天历史保留最近三轮，支持连续追问。
 - 每条问答写入项目本地的 `data/labor_ai.db`，不会发送到外部服务。
 - 页面内提供地区、岗位类型筛选，便于演示真实岗位信息。
+- “候选人匹配”页支持登记候选人、按岗位和技能生成可解释推荐，并创建报名记录、流转面试/录用状态。
+- 检索默认使用向量 + 词法的混合召回与 RRF 融合；设置 `RAG_RETRIEVAL_MODE=vector` 可回退到原向量检索。
 - 索引记录数据签名；更新 `data/` 后，下次启动会自动重建 Chroma 索引。
 
 ## 企业开发流程
@@ -73,6 +75,8 @@ streamlit run app.py
 $env:OLLAMA_MODEL = "qwen2.5:7b"
 $env:OLLAMA_BASE_URL = "http://localhost:11434"
 $env:DEMO_PASSWORD = "请设置一个足够长的随机密码"
+# 可选：出现兼容性问题时临时回退到纯向量检索
+$env:RAG_RETRIEVAL_MODE = "vector"
 streamlit run app.py
 ```
 

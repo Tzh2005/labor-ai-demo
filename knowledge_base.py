@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
+import re
 import shutil
 import sys
 import tempfile
@@ -150,14 +152,66 @@ class KnowledgeBase:
         if not query or not query.strip():
             return []
         self._ensure_loaded()
-        return self.vectorstore.similarity_search(query.strip(), k=k)
+        if os.getenv("RAG_RETRIEVAL_MODE", "hybrid").lower() == "vector":
+            return self.vectorstore.similarity_search(query.strip(), k=k)
+        return self.hybrid_search(query, k=k)
+
+    def hybrid_search(self, query: str, k: int = 4, document_type: str | None = None) -> list[Document]:
+        """Fuse vector and lexical rankings with Reciprocal Rank Fusion (RRF)."""
+        if not query or not query.strip():
+            return []
+        self._ensure_loaded()
+        documents = self._build_documents()
+        if document_type:
+            documents = [document for document in documents if document.metadata.get("type") == document_type]
+        if not documents:
+            return []
+
+        vector_documents: list[Document] = []
+        try:
+            vector_documents = self.vectorstore.similarity_search(query.strip(), k=max(k * 3, 8))
+            if document_type:
+                vector_documents = [document for document in vector_documents if document.metadata.get("type") == document_type]
+        except Exception:
+            logger.exception("Vector retrieval failed; using lexical retrieval only.")
+
+        lexical_documents = self._lexical_search(query, documents, max(k * 3, 8))
+        ranked: dict[str, float] = {}
+        by_key: dict[str, Document] = {}
+        for ranked_documents in (vector_documents, lexical_documents):
+            for rank, document in enumerate(ranked_documents, start=1):
+                key = self._document_key(document)
+                by_key[key] = document
+                ranked[key] = ranked.get(key, 0.0) + 1 / (60 + rank)
+        return [by_key[key] for key in sorted(ranked, key=ranked.get, reverse=True)[:k]]
+
+    @staticmethod
+    def _document_key(document: Document) -> str:
+        stable = document.metadata.get("job_id") or document.metadata.get("title") or document.page_content
+        return f"{document.metadata.get('type', 'document')}:{stable}"
+
+    @staticmethod
+    def _lexical_search(query: str, documents: list[Document], limit: int) -> list[Document]:
+        terms = set(re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z0-9]+", query.lower()))
+        if not terms:
+            return []
+        scored: list[tuple[int, int, Document]] = []
+        for index, document in enumerate(documents):
+            content_terms = set(re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z0-9]+", document.page_content.lower()))
+            score = len(terms & content_terms)
+            if score:
+                scored.append((score, -index, document))
+        scored.sort(reverse=True, key=lambda item: (item[0], item[1]))
+        return [document for _, _, document in scored[:limit]]
 
     def search_jobs(self, query: str, k: int = 5) -> list[Document]:
         """Return only job documents for recommendations and job browsing."""
         if not query or not query.strip():
             return []
         self._ensure_loaded()
-        return self.vectorstore.similarity_search(query.strip(), k=k, filter={"type": "job"})
+        if os.getenv("RAG_RETRIEVAL_MODE", "hybrid").lower() == "vector":
+            return self.vectorstore.similarity_search(query.strip(), k=k, filter={"type": "job"})
+        return self.hybrid_search(query, k=k, document_type="job")
 
     def stats(self) -> dict[str, int | bool]:
         """Return lightweight status without loading the embedding model."""
