@@ -15,6 +15,9 @@ data/*.db-*
 chroma_db/
 *.log
 
+# External reference repositories (kept outside the product source tree)
+参考开源项目/
+
 # IDE and OS files
 .idea/
 .vscode/
