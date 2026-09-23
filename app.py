@@ -341,12 +341,27 @@ with chat_tab:
                     for source in message["sources"]:
                         st.caption(source)
 
-    typed_question = st.chat_input("例如：石岩附近有没有包吃住的普工岗位？")
-    question = typed_question or st.session_state.pending_question
+    if st.session_state.pending_question:
+        st.session_state.chat_draft = st.session_state.pending_question
+        st.session_state.pending_question = ""
+    if "chat_draft" not in st.session_state:
+        st.session_state.chat_draft = ""
+    st.caption("输入问题后点击“发送问题”，或在输入框内按 Ctrl+Enter 提交。")
+    with st.form("project_chat_form", clear_on_submit=True):
+        typed_question = st.text_area(
+            "项目问题",
+            key="chat_draft",
+            placeholder="例如：石岩附近有没有包吃住的普工岗位？",
+            height=80,
+            label_visibility="collapsed",
+        )
+        submit_question = st.form_submit_button("发送问题", use_container_width=True)
+    question = typed_question if submit_question else ""
+    if submit_question and not question.strip():
+        st.info("请输入问题后再发送。")
     if question:
         question = question.strip()
         if len(question) > _MAX_QUESTION_LENGTH:
-            st.session_state.pending_question = ""
             st.warning(f"单次提问请控制在 {_MAX_QUESTION_LENGTH} 个字符以内。")
             st.stop()
         # 限流：每分钟最多 _MAX_QUESTIONS_PER_MINUTE 次
@@ -360,11 +375,9 @@ with chat_tab:
             st.session_state.messages.append({"role": "assistant", "content": message, "sources": []})
             with st.chat_message("assistant"):
                 st.warning(message)
-            st.session_state.pending_question = ""
             st.rerun()
         st.session_state.question_timestamps.append(now)
 
-        st.session_state.pending_question = ""
         st.session_state.messages.append({"role": "user", "content": question, "sources": []})
         store.save_message(st.session_state.conversation_id, "user", question, project_id=project_id)
         with st.chat_message("user"):
