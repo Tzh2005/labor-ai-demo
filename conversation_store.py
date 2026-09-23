@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
@@ -464,6 +465,72 @@ class ConversationStore:
                 ).fetchall()
         return [dict(row) for row in rows]
 
+    def register_project_document(
+        self,
+        project_id: str,
+        title: str,
+        document_type: str,
+        version: str,
+        original_filename: str,
+        storage_path: str,
+        content_hash: str,
+        actor_id: str = "local_user",
+    ) -> int:
+        """Register an immutable local document version for one project."""
+        allowed_types = {"contract", "job_specification", "sop", "safety_policy", "entry_requirement", "service_standard", "other"}
+        if document_type not in allowed_types:
+            raise ValueError("不支持的文档类型")
+        if not title.strip() or not version.strip():
+            raise ValueError("文档名称和版本不能为空")
+        if len(title.strip()) > 160 or len(version.strip()) > 64 or len(original_filename) > 255:
+            raise ValueError("文档名称、版本或文件名过长")
+        if not re.fullmatch(r"[0-9a-f]{64}", content_hash):
+            raise ValueError("文档内容校验值无效")
+        now = datetime.now(timezone.utc).isoformat()
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                project_exists = connection.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone()
+                if not project_exists:
+                    raise ValueError("项目不存在，无法登记资料")
+                existing = connection.execute(
+                    "SELECT id FROM project_documents WHERE project_id = ? AND content_hash = ?",
+                    (project_id, content_hash),
+                ).fetchone()
+                if existing:
+                    return int(existing[0])
+                cursor = connection.execute(
+                    """
+                    INSERT INTO project_documents (
+                        project_id, title, document_type, version, original_filename,
+                        storage_path, content_hash, status, uploaded_by, uploaded_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    """,
+                    (project_id, title.strip(), document_type, version.strip(), original_filename, storage_path, content_hash, actor_id, now),
+                )
+                document_id = int(cursor.lastrowid)
+        self.record_audit_event(
+            "register", "project_document", document_id,
+            {"title": title.strip(), "document_type": document_type, "version": version.strip(), "content_hash": content_hash},
+            project_id, actor_id,
+        )
+        return document_id
+
+    def list_project_documents(self, project_id: str = DEFAULT_PROJECT_ID) -> list[dict[str, Any]]:
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            with connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    """
+                    SELECT id, project_id, title, document_type, version, original_filename,
+                           storage_path, content_hash, status, uploaded_by, uploaded_at
+                    FROM project_documents
+                    WHERE project_id = ? AND status = 'active'
+                    ORDER BY uploaded_at DESC, id DESC
+                    """,
+                    (project_id,),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
     def message_count(self) -> int:
         with closing(sqlite3.connect(self.database_path)) as connection:
             with connection:
@@ -619,6 +686,24 @@ class ConversationStore:
                         created_at TEXT NOT NULL,
                         previous_hash TEXT NOT NULL,
                         event_hash TEXT NOT NULL UNIQUE
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS project_documents (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        project_id TEXT NOT NULL REFERENCES projects(id),
+                        title TEXT NOT NULL,
+                        document_type TEXT NOT NULL,
+                        version TEXT NOT NULL,
+                        original_filename TEXT NOT NULL,
+                        storage_path TEXT NOT NULL,
+                        content_hash TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK (status IN ('active', 'archived')),
+                        uploaded_by TEXT NOT NULL,
+                        uploaded_at TEXT NOT NULL,
+                        UNIQUE(project_id, content_hash)
                     )
                     """
                 )

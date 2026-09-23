@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import gc
 import json
 import logging
 import os
@@ -89,6 +90,7 @@ class KnowledgeBase:
         # temp directory can be on a different drive on Windows, where moving
         # it becomes a copy and can leave no usable index after an interruption.
         staging_dir = Path(tempfile.mkdtemp(prefix=".chroma_rebuild_", dir=self.chroma_dir.parent))
+        activation_dir = staging_dir.with_name(f"{staging_dir.name}_ready")
         try:
             tmp_store = Chroma.from_documents(
                 documents=documents,
@@ -96,12 +98,21 @@ class KnowledgeBase:
                 collection_name=self.collection_name,
                 persist_directory=str(staging_dir),
             )
-            if hasattr(tmp_store, "persist"):
-                tmp_store.persist()
-            self._activate_staged_index(staging_dir, signature)
+            # Chroma keeps SQLite handles on Windows until the temporary
+            # wrapper is collected; release them before renaming the folder.
+            del tmp_store
+            gc.collect()
+            # Chroma's process-level client can retain the staging directory
+            # on Windows. Copying to an untouched sibling keeps the staged
+            # contents intact while giving the atomic activation step a free
+            # directory handle to rename.
+            shutil.copytree(staging_dir, activation_dir)
+            self._activate_staged_index(activation_dir, signature)
         finally:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir, ignore_errors=True)
+            if activation_dir.exists():
+                shutil.rmtree(activation_dir, ignore_errors=True)
         logger.info("Chroma index rebuilt and swapped in (signature=%s)", signature[:12])
 
     def _activate_staged_index(self, staging_dir: Path, signature: str) -> None:

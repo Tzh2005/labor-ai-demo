@@ -16,6 +16,7 @@ from ai_service import AIService, check_ollama, resolve_model_name
 from conversation_store import ConversationStore
 from knowledge_base import KnowledgeBase
 from matching import match_candidate_to_jobs
+from project_documents import store_text_document
 from report_engine import build_evidence_bundle, calculate_delivery_metrics
 from risk_engine import assess_project_risks
 
@@ -247,7 +248,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-dashboard_tab, chat_tab, jobs_tab, candidates_tab, delivery_tab, audit_tab = st.tabs(["项目驾驶舱", "项目问答", "岗位需求", "候选人与报名", "人员派工", "审计证据"])
+dashboard_tab, chat_tab, knowledge_tab, jobs_tab, candidates_tab, delivery_tab, audit_tab = st.tabs(
+    ["项目驾驶舱", "项目问答", "项目知识库", "岗位需求", "候选人与报名", "人员派工", "审计证据"]
+)
 
 with dashboard_tab:
     st.subheader(f"{active_project['name']} · 交付概览")
@@ -369,7 +372,13 @@ with chat_tab:
         try:
             started_at = time.perf_counter()
             with st.spinner("正在检索本地知识库..."):
-                token_stream, sources = get_service().chat_stream(question, history_text(st.session_state.messages[:-1]))
+                project_documents = store.list_project_documents(project_id)
+                token_stream, sources = get_service().chat_stream(
+                    question,
+                    history_text(st.session_state.messages[:-1]),
+                    project_id=project_id,
+                    project_documents=project_documents,
+                )
 
             with st.chat_message("assistant"):
                 # The service validates the complete model response before it
@@ -395,6 +404,64 @@ with chat_tab:
 
     if "last_elapsed" in st.session_state:
         st.caption(f"最近一次回答耗时：{st.session_state.last_elapsed:.2f} 秒")
+
+with knowledge_tab:
+    st.subheader("合同、SOP 与制度文件")
+    st.caption("资料仅保存到本机当前项目目录，并在项目问答中按项目范围检索。当前只支持 UTF-8 编码的 .txt 与 .md 文件。")
+    st.warning("请勿上传身份证、银行卡、工资明细、社保明细或其他不必要的个人敏感信息。当前演示未提供正式成员权限、审批或加密密钥管理。")
+    document_type_labels = {
+        "contract": "合同",
+        "job_specification": "岗位说明",
+        "sop": "SOP",
+        "safety_policy": "安全制度",
+        "entry_requirement": "入场要求",
+        "service_standard": "服务标准",
+        "other": "其他项目资料",
+    }
+    with st.form("project_document_upload", clear_on_submit=True):
+        uploaded_document = st.file_uploader("选择项目资料", type=["txt", "md"])
+        document_name = st.text_input("资料名称", placeholder="例如：XX 工厂外包服务合同")
+        document_type = st.selectbox("资料类型", list(document_type_labels), format_func=lambda value: document_type_labels[value])
+        document_version = st.text_input("版本", placeholder="例如：v1.0")
+        document_submitted = st.form_submit_button("登记项目资料", use_container_width=True)
+    if document_submitted:
+        if uploaded_document is None:
+            st.error("请先选择 .txt 或 .md 文件。")
+        else:
+            try:
+                title = document_name.strip() or Path(uploaded_document.name).stem
+                document_id = store_text_document(
+                    store=store,
+                    project_id=project_id,
+                    title=title,
+                    document_type=document_type,
+                    version=document_version,
+                    original_filename=uploaded_document.name,
+                    content=uploaded_document.getvalue(),
+                )
+                st.success(f"项目资料 #{document_id} 已登记。下次项目问答会自动使用该资料。")
+                st.rerun()
+            except ValueError as error:
+                st.error(str(error))
+
+    documents = store.list_project_documents(project_id)
+    st.divider()
+    st.subheader("已登记资料")
+    if not documents:
+        st.info("当前项目还没有资料。可先上传虚构合同或 SOP 做演示测试。")
+    else:
+        document_rows = [
+            {
+                "名称": item["title"],
+                "类型": document_type_labels.get(item["document_type"], "项目资料"),
+                "版本": item["version"],
+                "原始文件": item["original_filename"],
+                "登记时间": item["uploaded_at"],
+                "内容校验": f"{item['content_hash'][:12]}...",
+            }
+            for item in documents
+        ]
+        st.dataframe(document_rows, use_container_width=True, hide_index=True)
 
 with jobs_tab:
     location_options = ["全部地区"] + sorted({str(job["location"]).split("区")[0] + "区" for job in jobs})
