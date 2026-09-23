@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from conversation_store import ConversationStore
-from risk_engine import assess_project_risks
+from risk_engine import assess_project_risks, group_dashboard_risks
 
 
 class ProjectDeliveryTests(unittest.TestCase):
@@ -37,6 +37,21 @@ class ProjectDeliveryTests(unittest.TestCase):
         )
         self.assertEqual(risks[0]["code"], "stale_application")
         self.assertIn("no_candidate", {risk["code"] for risk in risks})
+
+    def test_dashboard_risk_grouping_collapses_repeated_missing_candidates(self) -> None:
+        risks = [
+            {"severity": "high", "code": "stale_application", "title": "高风险一", "detail": "", "action": ""},
+            {"severity": "medium", "code": "no_candidate", "title": "岗位暂无候选人：甲厂 · 普工", "detail": "", "action": ""},
+            {"severity": "medium", "code": "no_candidate", "title": "岗位暂无候选人：乙厂 · 包装工", "detail": "", "action": ""},
+            {"severity": "medium", "code": "other", "title": "其他中风险", "detail": "", "action": ""},
+        ]
+
+        groups = group_dashboard_risks(risks, high_limit=1, other_limit=1)
+
+        self.assertEqual(groups["visible_high"], [risks[0]])
+        self.assertEqual(groups["no_candidate"], risks[1:3])
+        self.assertEqual(groups["visible_other"], [risks[3]])
+        self.assertEqual(groups["overflow_high"], [])
 
 
 if __name__ == "__main__":

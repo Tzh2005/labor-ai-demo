@@ -18,7 +18,7 @@ from knowledge_base import KnowledgeBase
 from matching import match_candidate_to_jobs
 from project_documents import store_text_document
 from report_engine import build_evidence_bundle, calculate_delivery_metrics
-from risk_engine import assess_project_risks
+from risk_engine import assess_project_risks, group_dashboard_risks
 
 
 logger = logging.getLogger(__name__)
@@ -278,11 +278,43 @@ with dashboard_tab:
     if not risks:
         st.success("当前规则未发现需要处理的交付风险。")
     else:
-        for risk in risks:
-            if risk["severity"] == "high":
-                st.error(f"高风险 · {risk['title']}\n\n{risk['detail']}\n\n建议：{risk['action']}")
-            else:
-                st.warning(f"中风险 · {risk['title']}\n\n{risk['detail']}\n\n建议：{risk['action']}")
+        risk_groups = group_dashboard_risks(risks)
+        risk_summary_columns = st.columns(3)
+        risk_summary_columns[0].metric("待处理风险", len(risks))
+        risk_summary_columns[1].metric("高风险", len(risk_groups["high"]))
+        risk_summary_columns[2].metric("缺候选人岗位", len(risk_groups["no_candidate"]))
+
+        for risk in risk_groups["visible_high"]:
+            st.error(f"高风险 · {risk['title']}\n\n{risk['detail']}\n\n建议：{risk['action']}")
+        for risk in risk_groups["visible_other"]:
+            st.warning(f"中风险 · {risk['title']}\n\n{risk['detail']}\n\n建议：{risk['action']}")
+
+        missing_candidate_risks = risk_groups["no_candidate"]
+        if missing_candidate_risks:
+            examples = "、".join(risk["title"].replace("岗位暂无候选人：", "") for risk in missing_candidate_risks[:3])
+            suffix = "等" if len(missing_candidate_risks) > 3 else ""
+            st.warning(
+                f"中风险 · {len(missing_candidate_risks)} 个岗位暂无候选人\n\n"
+                f"涉及：{examples}{suffix}。这些岗位当前均没有报名记录，可能影响交付。\n\n"
+                "建议：优先结合甲方需求期限和招聘难度，安排渠道补充。"
+            )
+
+        hidden_risks = risk_groups["overflow_high"] + risk_groups["overflow_other"] + missing_candidate_risks
+        if hidden_risks:
+            with st.expander(f"查看全部 {len(risks)} 条风险明细"):
+                st.dataframe(
+                    [
+                        {
+                            "级别": "高风险" if risk["severity"] == "high" else "中风险",
+                            "类型": "缺候选人" if risk["code"] == "no_candidate" else risk["code"],
+                            "事项": risk["title"],
+                            "建议": risk["action"],
+                        }
+                        for risk in risks
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
     st.subheader("在岗快照")
     snapshot_left, snapshot_right = st.columns(2)

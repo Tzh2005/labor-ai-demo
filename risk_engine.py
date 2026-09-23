@@ -70,3 +70,30 @@ def assess_project_risks(
 
     severity_order = {"high": 0, "medium": 1, "low": 2}
     return sorted(risks, key=lambda item: (severity_order.get(item["severity"], 9), item["title"]))
+
+
+def group_dashboard_risks(
+    risks: list[dict[str, str]],
+    high_limit: int = 3,
+    other_limit: int = 2,
+) -> dict[str, list[dict[str, str]]]:
+    """Group repetitive dashboard risks while preserving every original item.
+
+    Missing-candidate signals are emitted once per position by the rules engine.
+    The dashboard presents them as one operational backlog, while the full list
+    remains available in the collapsed detail section.
+    """
+    high_risks = [risk for risk in risks if risk.get("severity") == "high"]
+    no_candidate_risks = [risk for risk in risks if risk.get("code") == "no_candidate"]
+    other_risks = [
+        risk for risk in risks
+        if risk.get("severity") != "high" and risk.get("code") != "no_candidate"
+    ]
+    return {
+        "high": high_risks,
+        "visible_high": high_risks[:max(0, high_limit)],
+        "overflow_high": high_risks[max(0, high_limit):],
+        "no_candidate": no_candidate_risks,
+        "visible_other": other_risks[:max(0, other_limit)],
+        "overflow_other": other_risks[max(0, other_limit):],
+    }
