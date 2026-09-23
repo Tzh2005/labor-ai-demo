@@ -291,7 +291,7 @@ class ConversationStore:
                     """
                     SELECT applications.id, applications.candidate_id, candidates.name,
                            applications.job_id, jobs.factory_name, jobs.position,
-                           applications.status, applications.created_at
+                           applications.status, applications.created_at, applications.updated_at
                     FROM applications
                     JOIN candidates ON candidates.id = applications.candidate_id
                     JOIN jobs ON jobs.id = applications.job_id

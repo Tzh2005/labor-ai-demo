@@ -16,6 +16,7 @@ from ai_service import AIService, check_ollama, resolve_model_name
 from conversation_store import ConversationStore
 from knowledge_base import KnowledgeBase
 from matching import match_candidate_to_jobs
+from report_engine import build_evidence_bundle, calculate_delivery_metrics
 from risk_engine import assess_project_risks
 
 
@@ -264,6 +265,11 @@ with dashboard_tab:
 
     applications_for_risk = store.list_applications(project_id)
     placements_for_risk = store.list_placements(project_id)
+    report_candidates = store.list_candidates(project_id)
+    report_workers = store.list_workers(project_id)
+    report_snapshots = store.list_attendance_snapshots(project_id)
+    report_audit_events = store.list_audit_events(project_id, limit=200)
+    report_metrics = calculate_delivery_metrics(report_candidates, applications_for_risk, report_workers, placements_for_risk)
     risks = assess_project_risks(jobs, applications_for_risk, placements_for_risk)
     st.subheader("交付风险提醒")
     if not risks:
@@ -286,6 +292,42 @@ with dashboard_tab:
     snapshots = store.list_attendance_snapshots(project_id, limit=7)
     if snapshots:
         st.dataframe(snapshots, use_container_width=True, hide_index=True)
+
+    st.subheader("项目月报与证据包")
+    report_rows = {
+        "候选人数": report_metrics["candidate_count"],
+        "报名数": report_metrics["application_count"],
+        "面试中": report_metrics["interview_count"],
+        "已录用": report_metrics["hired_count"],
+        "工人主档": report_metrics["worker_count"],
+        "已入场": report_metrics["onboarded_count"],
+        "已离场": report_metrics["separated_count"],
+        "派工到岗率": f"{report_metrics['placement_fill_rate']}%" if report_metrics["placement_fill_rate"] is not None else "暂无数据",
+        "平均补人周期": f"{report_metrics['average_fill_days']} 天" if report_metrics["average_fill_days"] is not None else "暂无足够样本",
+        "7日留存率": "暂无足够样本" if report_metrics["retention_7d"] is None else f"{report_metrics['retention_7d']}%",
+        "30日留存率": "暂无足够样本" if report_metrics["retention_30d"] is None else f"{report_metrics['retention_30d']}%",
+    }
+    st.dataframe([{"指标": key, "值": value} for key, value in report_rows.items()], use_container_width=True, hide_index=True)
+    for limitation in report_metrics["limitations"]:
+        st.caption(f"口径说明：{limitation}")
+    evidence_payload = build_evidence_bundle(
+        project=active_project,
+        metrics=report_metrics,
+        jobs=jobs,
+        candidates=report_candidates,
+        applications=applications_for_risk,
+        workers=report_workers,
+        placements=placements_for_risk,
+        snapshots=report_snapshots,
+        audit_events=report_audit_events,
+    )
+    st.download_button(
+        "下载项目证据包（JSON）",
+        data=evidence_payload,
+        file_name=f"{project_id}-evidence-v1.json",
+        mime="application/json",
+        help="包含项目指标、岗位、派工、快照和审计链；不包含手机号哈希。",
+    )
 
 with chat_tab:
     for message in st.session_state.messages:
